@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#4f46e5">
+<meta name="description" content="المعلّم الذكي — منصة تحضير الدروس المدرسية بمساعدة الذكاء الاصطناعي">
+<link rel="manifest" href="manifest.json">
+<link rel="stylesheet" href="styles.css">
+<title>المعلّم الذكي ⭐</title>
+</head>
+<body>
+<main class="app">
+<header class="hero">
+<h1>المعلّم الذكي ⭐</h1>
+<p>دفتر التحضير الذكي</p>
+</header>
+
+<section class="panel">
+<h2>تحضير درس جديد</h2>
+<form id="lessonForm">
+<label>عنوان الدرس<input id="lessonTitle" class="form-input" placeholder="مثال: الفعل المضارع" required></label>
+<label>المادة<input id="lessonSubject" class="form-input" placeholder="اللغة العربية" required></label>
+<label>الصف<input id="lessonGrade" class="form-input" placeholder="الصف السابع" required></label>
+<label>الشعبة<input id="lessonSection" class="form-input" placeholder="ج"></label>
+<label>مدة الحصة<input id="lessonDuration" class="form-input" type="number" value="45" min="10"></label>
+<button class="primary-btn" type="submit">إنشاء التحضير 🤖</button>
+</form>
+</section>
+
+<section id="lessonResult" class="panel"></section>
+<section id="lessonToolResult" class="panel"></section>
+</main>
+
+<div id="smartToast" class="smart-toast"></div>
+
+<script src="db.js"></script>
+<script src="core.js"></script>
+<script src="assistant.js"></script>
+<script src="electroexam.js"></script>
+<script src="evaluation.js"></script>
+<script src="homework.js"></script>
+<script src="library-extract.js"></script>
+<script src="onboarding.js"></script>
+<script src="semester-plan.js"></script>
+<script>
+document.addEventListener("smartteacher:ready",()=>{
+ const form=document.getElementById("lessonForm");
+ const result=document.getElementById("lessonResult");
+ const tools=document.getElementById("lessonToolResult");
+ form.addEventListener("submit",async e=>{
+  e.preventDefault();
+  const btn=form.querySelector("button[type=submit]");
+  btn.disabled=true; btn.textContent="⏳ جاري إعداد الخطة...";
+  try{
+   const lesson=await SmartAI.generateLesson({
+    title:document.getElementById("lessonTitle").value,
+    subject:document.getElementById("lessonSubject").value,
+    grade:document.getElementById("lessonGrade").value,
+    section:document.getElementById("lessonSection").value,
+    duration:document.getElementById("lessonDuration").value
+   });
+   await SmartTeacher.addLesson(lesson);
+   result.innerHTML=renderLesson(lesson);
+   tools.innerHTML=`<div class="lesson-actions">
+   <button id="examBtn" class="secondary-btn">📝 إنشاء اختبار</button>
+   <button id="hwBtn" class="secondary-btn">🏠 إنشاء واجب</button>
+   <button id="evBtn" class="secondary-btn">📊 تقييم الدرس</button>
+   <button class="secondary-btn" onclick="window.print()">🖨️ طباعة</button>
+   </div><div id="toolOutput"></div>`;
+   document.getElementById("examBtn").onclick=async()=>{
+    const exam=SmartExam.createExam(lesson,{count:10});
+    await SmartExam.saveExam(exam);
+    SmartExam.renderExam(exam,document.getElementById("toolOutput"));
+   };
+   document.getElementById("hwBtn").onclick=async()=>{
+    const hw=SmartHomework.create(lesson); await SmartHomework.save(hw);
+    SmartHomework.render(hw,document.getElementById("toolOutput"));
+   };
+   document.getElementById("evBtn").onclick=()=>SmartEvaluation.render(lesson,document.getElementById("toolOutput"));
+   result.scrollIntoView({behavior:"smooth"});
+  }catch(err){SmartTeacher.showToast(err.message||"حدث خطأ")}
+  finally{btn.disabled=false;btn.textContent="إنشاء التحضير 🤖";}
+ });
+});
+function renderLesson(l){
+ return `<article class="lesson">
+ <h2>${SmartTeacher.escapeHTML(l.title)}</h2>
+ <p><b>المادة:</b> ${SmartTeacher.escapeHTML(l.subject)} — <b>الصف:</b> ${SmartTeacher.escapeHTML(l.grade)}</p>
+ <h3>الأهداف</h3><ul>${l.objectives.map(x=>`<li>${SmartTeacher.escapeHTML(x)}</li>`).join("")}</ul>
+ <h3>التمهيد</h3><p>${SmartTeacher.escapeHTML(l.introduction)}</p>
+ <h3>استراتيجيات التدريس</h3><ul>${l.strategies.map(x=>`<li>${SmartTeacher.escapeHTML(x)}</li>`).join("")}</ul>
+ <h3>إجراءات الدرس</h3>${l.procedures.map(x=>`<div class="procedure"><b>${SmartTeacher.escapeHTML(x.stage)}</b> — ${x.duration} دقيقة<br>${SmartTeacher.escapeHTML(x.description)}</div>`).join("")}
+ <h3>التقويم</h3><ul>${l.assessment.map(x=>`<li>${SmartTeacher.escapeHTML(x)}</li>`).join("")}</ul>
+ <h3>الواجب</h3><p>${SmartTeacher.escapeHTML(l.homework)}</p>
+ </article>`;
+}
+</script>
+<script>
+if("serviceWorker"in navigator)window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js").catch(console.error));
+</script>
+</body>
+</html>
